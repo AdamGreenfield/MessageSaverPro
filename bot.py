@@ -39,8 +39,7 @@ async def on_message(message):
     if not message.content.startswith('-'):
         return
     try:
-        guildFormatted = re.sub('\W+', '', message.guild.name)
-        dbName = 'messages_' + guildFormatted + '.db'
+        dbName = 'messages_' + str(message.guild.id) + '.db'
         con = sqlite3.connect(dbName)
         cur = con.cursor()
         initialize_db(cur)
@@ -55,16 +54,18 @@ async def on_message(message):
                 cur.execute('INSERT OR IGNORE INTO users (userid, username) VALUES (?,?);', (member.id, member.name))
             pattern = re.compile('\W')
             for channelCurr in message.guild.text_channels:
-                async for messageCurr in channelCurr.history(limit=200000):
-                    if str(messageCurr.author.id) != str(BOT_ID) and not messageCurr.content.startswith('-build'):
-                        i = 0
-                        for wordCurr in messageCurr.content.split():
-                            cur.execute('''INSERT OR IGNORE INTO history (messageid, wordstripped, word, hash, userid, date, position)
-                                           VALUES (?,?,?,?,?,?,?);''', (
-                            messageCurr.id, re.sub(pattern, '', wordCurr), wordCurr, hash(wordCurr),
-                            messageCurr.author.id, messageCurr.created_at, i))
-                            i += 1
-                print(f'{channelCurr.name} completed')
+                permissions = channelCurr.permissions_for(discord.utils.get(channelCurr.guild.members, name='MessageSaverPro'))
+                if permissions.read_message_history & permissions.read_messages:
+                    async for messageCurr in channelCurr.history(limit=200000):
+                        if str(messageCurr.author.id) != str(BOT_ID) and not messageCurr.content.startswith('-build'):
+                            i = 0
+                            for wordCurr in messageCurr.content.split():
+                                cur.execute('''INSERT OR IGNORE INTO history (messageid, wordstripped, word, hash, userid, date, position)
+                                               VALUES (?,?,?,?,?,?,?);''', (
+                                messageCurr.id, re.sub(pattern, '', wordCurr), wordCurr, hash(wordCurr),
+                                messageCurr.author.id, messageCurr.created_at, i))
+                                i += 1
+                    print(f'{channelCurr.name} completed')
             cur.execute('commit')
             print(f'{(time.time() - timeS) / 60}')
             print('Success')
@@ -88,7 +89,7 @@ async def on_message(message):
             cur.execute('commit')
             print('Done')
         elif message.content.startswith('-help'):
-            await message.channel.send('```-load - Must be used first\n-build - Build a random sentence\n-build [discord username] - Build random sentence for specified user\n-stats - Some interseting stats about the server```')
+            await message.channel.send('```-load - Must be used first\n-build - Build a random sentence\n-build [discord username] - Build random sentence for specified user\n-stats - Some interesting stats about the server\n-lookup [word] - Get # of occurnces of word```')
         elif message.content.startswith('-stats'):
             totalmessages = cur.execute('SELECT COUNT(DISTINCT messageid) FROM history;').fetchone()[0]
             topusers = []
@@ -130,6 +131,7 @@ async def on_message(message):
 
 
 def hash(string):
+    string = string.lower()
     ascii = ''
     for ch in string:
         ascii += str(ord(ch))
@@ -182,7 +184,6 @@ class SentenceBuilder:
                     for row in self.cur.execute('''SELECT H.word, H.hash, COUNT(*) AS count FROM history H 
                                                     INNER JOIN history H1 ON H1.messageid = H.messageID AND H1.position = ? AND H1.hash = ?
                                                     WHERE H.position = ? AND H.userid = ? GROUP BY H.hash
-                                                    HAVING count > 5
                                                     ORDER BY COUNT DESC;''',
                                                 (pos - 1, hashCurr, pos, self.id)):
                         list.append(row[0])
@@ -192,7 +193,6 @@ class SentenceBuilder:
                     for row in self.cur.execute('''SELECT H.word, H.hash, COUNT(*) AS count FROM history H 
                                                     INNER JOIN history H1 ON H1.messageid = H.messageID AND H1.position = ? AND H1.hash = ?
                                                     WHERE H.position = ? GROUP BY H.hash
-                                                    HAVING count > 5
                                                     ORDER BY COUNT DESC;''',
                                                 (pos - 1, hashCurr, pos)):
                         list.append(row[0])
