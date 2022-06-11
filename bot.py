@@ -46,7 +46,7 @@ async def on_message(message):
         initialize_db(cur)
         cur.execute('PRAGMA synchronous=OFF')
         cur.execute('PRAGMA journal_mode=MEMORY')
-        if message.content.startswith('-load') and str(message.author.id) == str(GOD):
+        if message.content.startswith('-load'):
             await message.channel.send('Loading')
             print('Loading')
             timeS = time.time()
@@ -149,7 +149,9 @@ class SentenceBuilder:
                 if self.id > 0:
                     for row in self.cur.execute('''SELECT H.word, H.hash, COUNT(*) AS count FROM history H 
                                                     INNER JOIN history H1 ON H1.messageid = H.messageID AND H1.position = ? AND H1.hash = ?
-                                                    WHERE H.position = ? AND H.userid = ? GROUP BY H.hash ORDER BY COUNT DESC;''',
+                                                    WHERE H.position = ? AND H.userid = ? GROUP BY H.hash
+                                                    HAVING count > 5
+                                                    ORDER BY COUNT DESC;''',
                                                 (pos - 1, hashCurr, pos, self.id)):
                         list.append(row[0])
                         weights.append(row[2])
@@ -157,7 +159,9 @@ class SentenceBuilder:
                 else:
                     for row in self.cur.execute('''SELECT H.word, H.hash, COUNT(*) AS count FROM history H 
                                                     INNER JOIN history H1 ON H1.messageid = H.messageID AND H1.position = ? AND H1.hash = ?
-                                                    WHERE H.position = ? GROUP BY H.hash ORDER BY COUNT DESC;''',
+                                                    WHERE H.position = ? GROUP BY H.hash
+                                                    HAVING count > 5
+                                                    ORDER BY COUNT DESC;''',
                                                 (pos - 1, hashCurr, pos)):
                         list.append(row[0])
                         weights.append(row[2])
