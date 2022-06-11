@@ -88,11 +88,43 @@ async def on_message(message):
             cur.execute('commit')
             print('Done')
         elif message.content.startswith('-help'):
-            await message.channel.send('```-load - Must be used first\n-build - Build a random sentence```')
+            await message.channel.send('```-load - Must be used first\n-build - Build a random sentence\n-build [discord username] - Build random sentence for specified user\n-stats - Some interseting stats about the server```')
         elif message.content.startswith('-stats'):
-            await message.channel.send('Soon')
+            totalmessages = cur.execute('SELECT COUNT(DISTINCT messageid) FROM history;').fetchone()[0]
+            topusers = []
+            topwords = []
+            for row in cur.execute('''  SELECT U.username, COUNT(DISTINCT H.messageid) AS c 
+                                        FROM history H 
+                                            INNER JOIN users U ON U.userid = H.userid 
+                                        GROUP BY U.username 
+                                        ORDER BY C DESC LIMIT 10;'''):
+                topusers.append([row[0], row[1]])
+            #I'll fix this later...
+            for row in cur.execute('''  SELECT word, COUNT(*) AS c 
+                                        FROM history 
+                                        WHERE LOWER(word) NOT IN (  "the","i","a","to","you","is","it","my","and","in",
+                                                                    "that","of","me","on","just","have","for","this",
+                                                                    "was","like","what","so","do","get","be","with",
+                                                                    "your","im","no","at","we","are","can","not","up",
+                                                                    "but","he","all","if","one","some","they","go","its",
+                                                                    "yeah","out","how", "got", "dont", "when","about",
+                                                                    "i'm","-","-play", "by", "will", "now","u","as",
+                                                                    "or","?play","from","added","has","an","us")
+                                        GROUP BY word 
+                                        ORDER BY c DESC LIMIT 10;'''):
+                topwords.append([row[0], row[1]])
+            sendmessage = '```Total Messages: {}\n\nTop users:\n'.format(totalmessages)
+            for i in range(len(topusers)):
+                sendmessage += '{}. {}: {} messages\n'.format(i+1, topusers[i][0], topusers[i][1])
+            sendmessage += '\nTop words:\n'
+            for i in range(len(topwords)):
+                sendmessage += '{}. {}: {} occurences\n'.format(i+1, topwords[i][0], topwords[i][1])
+            sendmessage += '```'
+            await message.channel.send(sendmessage)
         elif message.content.startswith('-lookup'):
-            await message.channel.send('Soon')
+            word = message.content.split()[1]
+            occurences = cur.execute('SELECT COUNT(*) FROM history WHERE word = ?;', (word,)).fetchone()[0]
+            await message.channel.send('```"{}" occurences: {}```'.format(word, occurences))
     except sqlite3.Error as er:
         print('SQLite error: %s' % (' '.join(er.args)))
 
